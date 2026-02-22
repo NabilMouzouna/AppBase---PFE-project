@@ -1,61 +1,63 @@
-## What You're Actually Building
+# LocalCloud — Project Specification
 
-**"LAN Cloud Platform" - Self-Hosted AWS for Local Networks**
-
-You're essentially building:
-- **Storage layer** (like S3)
-- **IAM system** (access control)
-- **API exposure** (for developers to build on top)
-- **Multi-tenant capabilities** (different users, different permissions)
-
-This is **infrastructure**, not just an app. Big difference.
+**Self-hosted cloud platform for local networks (storage, IAM, developer APIs)**
 
 ---
 
-## Why This Is Actually Good
+## 1. Project Overview
 
-**The senior engineer in me now sees:**
+### 1.1 Scope
 
-✅ **Platform thinking** - You're building something others can build on top of (via APIs)
-✅ **Real architecture** - IAM, storage abstraction, API design
-✅ **Practical scope** - LAN now, WAN later = good phasing
-✅ **Resume value** - "Built cloud storage platform with S3-compatible API" sounds way better
-✅ **Clear problem** - SMBs and homes can't afford/don't want AWS, but need those capabilities
+LocalCloud (or HomeStack) is an **infrastructure platform**, not a consumer application. It provides:
 
-**The key difference:**
-- ❌ File sharing = consumer app
-- ✅ Cloud platform = infrastructure/developer tool
+- **Storage layer** — S3-compatible object storage on external drives
+- **IAM system** — identity and access control
+- **API layer** — REST APIs for third-party applications
+- **Multi-tenancy** — isolated users and permissions
+- **Security isolation** — operates exclusively on external/removable drives
 
----
+**Tagline:** *"AWS for your LAN — Self-hosted cloud platform with storage, IAM, and developer APIs"*
 
-## Revised Project Definition
+**Key Security Design:** The server operates exclusively on user-specified external drives (USB, external HDD/SSD). It has **no access** to the host machine's internal files, system directories, or configurations. The server process runs with restricted permissions, confined to designated external storage paths. Even if compromised, only the external drive contents are exposed — your host machine remains protected.
 
-### **Project Name: "LocalCloud" or "HomeStack"**
+### 1.2 Positioning
 
-**Tagline:** "AWS for your LAN - Self-hosted cloud platform with storage, IAM, and developer APIs"
+| Type | Description |
+|------|-------------|
+| ❌ Consumer app | Simple file sharing |
+| ✅ Platform | Infrastructure and developer tooling (APIs, IAM, storage abstraction) |
 
-### **Core Value Proposition**
-
-**For End Users:**
-- Access your files from any device on LAN
-- No monthly subscription (Google Drive costs $10/mo for 2TB)
-- Complete privacy - data never leaves your network
-- Works without internet
-
-**For Developers:**
-- S3-compatible API to build LAN-based apps
-- Authentication/authorization as a service
-- Local-first app development platform
-
-**For Organizations (schools, clinics, small businesses):**
-- Enterprise features without enterprise costs
-- Compliance-friendly (data residency)
-- Fast transfers over LAN
-- Self-managed infrastructure
+Phasing: LAN-first deployment, with optional WAN extension later.
 
 ---
 
-## System Architecture (The Right Way)
+## 2. Value Proposition
+
+### 2.1 End Users
+
+- Access files from any device on the LAN
+- No recurring subscription (vs. e.g. Google Drive at ~$10/month for 2TB)
+- Data stays on the network; no off-site transfer
+- Usable without internet connectivity
+- **Host machine security** — server only accesses external drives
+
+### 2.2 Developers
+
+- S3-compatible API for LAN-based applications
+- Authentication and authorization as a service
+- Local-first application development target
+
+### 2.3 Organizations (schools, clinics, SMBs)
+
+- Enterprise-style features at lower cost
+- Data residency and compliance-friendly deployment
+- High transfer speeds over LAN
+- Full control over infrastructure
+- **Incident isolation** — compromised server cannot access internal systems
+
+---
+
+## 3. System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -94,7 +96,7 @@ This is **infrastructure**, not just an app. Big difference.
 │  │         Metadata Store                 │                 │
 │  │  ┌──────────────┐  ┌─────────────────┐ │                 │
 │  │  │  PostgreSQL  │  │   Redis Cache   │ │                 │
-│  │  │   (Primary)  │  │   (Sessions)    │ │                 │
+│  │  │(on ext drive)│  │   (Sessions)    │ │                 │
 │  │  └──────────────┘  └─────────────────┘ │                 │
 │  └────────────────────────────────────────┘                 │
 └──────────────────────────┬───────────────────────────────────┘
@@ -110,35 +112,93 @@ This is **infrastructure**, not just an app. Big difference.
 │  └───────────┼────────────────────────┼──────────────────┘   │
 └──────────────┼────────────────────────┼──────────────────────┘
                │                        │
-        ┌──────▼────────┐        ┌─────▼──────┐
-        │  Hard Drive   │        │   Temp     │
-        │  (Primary)    │        │  Storage   │
-        └───────────────┘        └────────────┘
+        ┌──────▼────────────────────────▼──────┐
+        │  EXTERNAL DRIVE (USB/HDD/SSD)        │
+        │  ┌──────────┐  ┌───────────────┐    │
+        │  │ Objects  │  │ Database +    │    │
+        │  │ Storage  │  │ Config + Logs │    │
+        │  └──────────┘  └───────────────┘    │
+        └──────────────────────────────────────┘
+                 ↑
+                 │ Isolated Access Only
+                 │ (No host filesystem access)
 ```
+
+### 3.1 Security Isolation Model
+
+**Filesystem Restrictions:**
+- Server runs with restricted user privileges (non-admin/non-root)
+- Only read/write access to designated external drive paths
+- Zero access to: system directories (`/`, `C:\`, `/home`, `/etc`), internal drives, user documents, application configs
+
+**Configuration:**
+```yaml
+storage:
+  allowed_paths:
+    - /mnt/external-drive-1      # Linux USB mount
+    - /media/usb-storage          # Alternative mount
+    - E:\                         # Windows external drive
+  # All other paths blocked with access denied error
+```
+
+**Path Validation (enforced in code):**
+```go
+func validatePath(requestedPath string) error {
+    realPath := filepath.Clean(requestedPath)
+    
+    // Check if path starts with allowed directories
+    for _, allowed := range config.AllowedPaths {
+        if strings.HasPrefix(realPath, allowed) {
+            return nil
+        }
+    }
+    return errors.New("access denied: path outside allowed storage")
+}
+```
+
+**External Drive Detection:**
+- Automatic scanning for USB/removable drives only
+- Manual path specification during setup
+- System drives automatically excluded from detection
+
+**Complete Isolation:**
+- Database stored on external drive
+- Configuration files on external drive
+- Logs written to external drive
+- Zero writes to host filesystem
+
+**Security Result:**
+- ✅ Compromised server → external drive only exposed
+- ✅ Host OS files protected
+- ✅ User documents protected
+- ✅ System configurations protected
+- ✅ Principle of least privilege enforced
 
 ---
 
-## Core Components Explained
+## 4. Core Components
 
-### **1. API Gateway Layer**
-- **Single entry point** for all requests
-- Routes to appropriate service (auth, storage, admin)
-- Handles rate limiting, logging
+### 4.1 API Gateway
+
+- Single entry point for all requests
+- Routing to auth, storage, and admin services
+- Rate limiting and request logging
 - TLS termination
 
-### **2. Identity & IAM Service**
-This is your **differentiator** - full IAM like AWS:
+### 4.2 Identity & IAM
 
-**Users & Authentication:**
-- User registration/login
-- JWT token issuance
+**Users & authentication**
+
+- Registration and login
+- JWT issuance and validation
 - Password reset flows
 
-**Roles & Policies:**
-- Define roles (Admin, Developer, ReadOnly, etc.)
-- Attach policies to roles
-- Policies define: what actions on what resources
-- Example policy:
+**Roles & policies**
+
+- Roles (e.g. Admin, Developer, ReadOnly)
+- Policies attached to roles
+- Policy format (example):
+
 ```json
 {
   "Version": "1.0",
@@ -150,23 +210,23 @@ This is your **differentiator** - full IAM like AWS:
 }
 ```
 
-**Access Keys:**
-- Generate API keys for programmatic access (like AWS access key/secret)
-- Developers use these to call Storage API
+**Access keys**
 
-### **3. Storage Service (S3-Compatible)**
+- API key pairs (access key + secret) for programmatic access
+- Keys bound to user identity; used for Storage API calls
 
-**Buckets:**
-- Logical containers for objects
-- Per-bucket permissions
-- Versioning support (optional for PFE)
+### 4.3 Storage Service (S3-Compatible)
 
-**Objects:**
-- Any file type
-- Metadata (content-type, custom headers)
-- Support multipart upload for large files
+**Buckets**
 
-**API Endpoints (S3-compatible subset):**
+- Logical containers; per-bucket permissions; optional versioning
+
+**Objects**
+
+- Arbitrary file types; metadata (content-type, custom headers); multipart upload for large files
+
+**API surface (S3-compatible subset)**
+
 ```
 # Bucket operations
 PUT    /{bucket}                    # Create bucket
@@ -185,103 +245,123 @@ PUT    /{bucket}/{key}?uploadId=X   # Upload part
 POST   /{bucket}/{key}?uploadId=X   # Complete
 ```
 
-### **4. Storage Engine**
+### 4.4 Storage Engine
 
-**Encryption at rest:**
-- Every object encrypted with AES-256-GCM
-- Key management: master key + per-object keys
-- Keys stored in metadata DB, encrypted with master key
-
-**Content addressing (optional but cool):**
-- Hash file content (SHA-256)
-- Store once, reference many times (deduplication)
-- Saves space when same file uploaded multiple times
-
-**Physical storage:**
-- Objects stored as files in directory structure
-- Example: `bucket/prefix/objectkey` → `/storage/data/ab/cd/abcd1234...`
-- Metadata in database (original name, size, owner, encryption key)
+- **Encryption at rest:** AES-256-GCM; master key + per-object keys; keys in metadata DB, encrypted with master key
+- **Content addressing (optional):** content hash (e.g. SHA-256); deduplication by storing one copy per hash
+- **Physical layout:** objects as files under external drive directory structure; metadata (name, size, owner, encryption key) in the database
 
 ---
 
-## Functional Requirements (Refined)
+## 5. Resource Management
 
-### **FR1: Identity & Access Management**
+### 5.1 Host Machine Protection
 
-**FR1.1: User Management**
-- Create, read, update, delete users
+The server is designed to run as a **background service** that uses host resources (CPU, RAM, network) without interfering with normal computer usage.
+
+**Resource Limits (Configurable):**
+```yaml
+resources:
+  max_cpu_percent: 70          # Never use more than 70% CPU
+  max_memory_mb: 2048          # Max 2GB RAM
+  max_concurrent_uploads: 10   # Limit parallel operations
+  max_concurrent_downloads: 20
+  disk_io_limit_mbps: 100      # Throttle disk I/O
+```
+
+**Implementation:**
+- Worker pools limit concurrent operations
+- Rate limiting on API requests
+- Stream files (no full-file memory loading)
+- Buffered I/O for disk operations
+- Lower process priority (OS-level nice/priority settings)
+- Auto-throttle when host resources exceed thresholds
+
+**Why It Works on Weak Hardware:**
+- File transfers are **I/O-bound**, not CPU-bound (minimal computation)
+- Encryption overhead is only 5-10% CPU (modern CPUs have AES instructions)
+- Network saturates before CPU does (100 Mbps LAN = ~20% CPU on old hardware)
+- Go's efficient goroutines (2KB each vs 1MB threads)
+
+**Minimum Viable Hardware:**
+- CPU: Dual-core (even older Celeron/i3)
+- RAM: 2GB total (1GB for server + OS)
+- Any HDD/SSD (speed affects transfer rate, not feasibility)
+
+**Real-World Performance:**
+An old laptop (i5 4th gen, 4GB RAM) can handle:
+- 30+ concurrent users
+- 100+ Mbps transfers
+- Host still usable for browsing/documents
+
+---
+
+## 6. Functional Requirements
+
+### 6.1 Identity & Access Management
+
+**FR1.1 — User management**
+
+- CRUD for users
 - Email + password authentication
-- Email verification (optional)
-- Password reset via email/manual
+- Optional email verification
+- Password reset (email or manual)
 
-**FR1.2: Role-Based Access Control**
+**FR1.2 — Role-based access control**
+
 - Predefined roles: SuperAdmin, Admin, Developer, User
-- Custom role creation
-- Attach roles to users
-- Role inheritance (optional)
+- Custom roles; role assignment to users; optional role inheritance
 
-**FR1.3: Policy Management**
-- Create policies (JSON-based like AWS IAM)
-- Attach policies to roles
-- Policy evaluation engine (check if user can perform action)
+**FR1.3 — Policy management**
 
-**FR1.4: API Keys**
-- Generate access key + secret key pairs
-- Revoke keys
-- Keys tied to user identity
-- Used for programmatic access
+- JSON-based policies (AWS IAM–style)
+- Policies attached to roles
+- Policy evaluation (allow/deny for given action/resource)
 
-### **FR2: Storage Service**
+**FR1.4 — API keys**
 
-**FR2.1: Bucket Management**
-- Create/delete buckets
-- List buckets (only those user has access to)
-- Bucket-level permissions
-- Bucket quotas (max size per bucket)
+- Access key + secret key pairs; revocation; keys bound to user; used for programmatic access
 
-**FR2.2: Object Management**
-- Upload objects (single and multipart)
-- Download objects
-- Delete objects
-- List objects with pagination
-- Object metadata (content-type, size, last-modified)
+### 6.2 Storage Service
 
-**FR2.3: Encryption**
-- All objects encrypted at rest
-- Encryption transparent to user
-- Option for client-side encryption (user provides key)
+**FR2.1 — Buckets**
 
-**FR2.4: Access Control**
-- Object-level permissions
-- Pre-signed URLs (temporary access links)
-- Public vs private objects
+- Create/delete buckets; list buckets (scoped by access); bucket-level permissions; optional quotas
 
-### **FR3: Admin Console (Web UI)**
+**FR2.2 — Objects**
 
-**FR3.1: Dashboard**
-- Storage usage (total, per user, per bucket)
-- Active users
-- Recent activity logs
+- Upload (single and multipart), download, delete; list with pagination; metadata (content-type, size, last-modified)
 
-**FR3.2: User Management UI**
-- Add/remove users
-- Assign roles
-- View user activity
+**FR2.3 — Encryption**
 
-**FR3.3: Storage Browser**
-- Navigate buckets/objects
-- Upload/download via web interface
-- Delete files
+- Encryption at rest; transparent to callers; optional client-side encryption (user-supplied key)
 
-**FR3.4: System Configuration**
-- Configure storage location
-- Set quotas
-- Manage encryption keys
-- View system logs
+**FR2.4 — Access control**
 
-### **FR4: Developer SDK (Nice to have)**
+- Object-level permissions; pre-signed URLs; public vs private objects
 
-**FR4.1: Python SDK**
+### 6.3 Admin Console (Web UI)
+
+**FR3.1 — Dashboard**
+
+- Storage usage (global, per user, per bucket); active users; recent activity
+
+**FR3.2 — User management**
+
+- Add/remove users; assign roles; view user activity
+
+**FR3.3 — Storage browser**
+
+- Browse buckets/objects; upload/download via UI; delete
+
+**FR3.4 — System configuration**
+
+- **External drive selection/detection**; quotas; encryption keys; system logs
+
+### 6.4 Developer SDK (Optional)
+
+**FR4.1 — Python SDK (example)**
+
 ```python
 from localcloud import Client
 
@@ -291,169 +371,83 @@ client = Client(
     secret_key='wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
 )
 
-# Upload file
 client.upload_file('my-bucket', 'photo.jpg', '/path/to/photo.jpg')
-
-# Download file
 client.download_file('my-bucket', 'photo.jpg', '/path/to/save.jpg')
-
-# List objects
 objects = client.list_objects('my-bucket')
 ```
 
 ---
 
-## Non-Functional Requirements
+## 7. Non-Functional Requirements
 
-**NFR1: Performance**
-- Handle 50+ concurrent connections
-- Upload/download speed: 80%+ of LAN bandwidth
-- API response time: <100ms (excluding data transfer)
-- Support files up to 50GB (via multipart upload)
-
-**NFR2: Security**
-- All data encrypted at rest (AES-256)
-- TLS 1.3 for data in transit
-- No plaintext passwords (bcrypt/Argon2)
-- API key secrets never logged
-- Audit logging for all operations
-
-**NFR3: Scalability**
-- Support 1000+ users
-- Support 10TB+ storage
-- Horizontal scaling ready (stateless API servers)
-
-**NFR4: Reliability**
-- Handle drive disconnection gracefully
-- Database backup/restore
-- Recovery from crashes
-
-**NFR5: Developer Experience**
-- S3-compatible API (existing tools work)
-- Clear API documentation (OpenAPI/Swagger)
-- SDK examples in Python/JavaScript
-- Error messages follow standard HTTP codes
+| ID   | Area   | Target |
+|------|--------|--------|
+| NFR1 | Performance | 50+ concurrent connections; 80%+ of LAN bandwidth for transfer; API latency &lt;100 ms (excl. transfer); files up to 50 GB (multipart) |
+| NFR2 | Security | AES-256 at rest; TLS 1.3 in transit; bcrypt/Argon2 for passwords; API secrets not logged; audit logging; **filesystem isolation** |
+| NFR3 | Scalability | 1000+ users; 10 TB+ storage; stateless API layer for horizontal scaling |
+| NFR4 | Reliability | Graceful handling of drive issues; DB backup/restore; crash recovery |
+| NFR5 | Resource efficiency | &lt;2GB RAM usage; &lt;70% CPU utilization; minimal host impact |
+| NFR6 | Developer experience | S3-compatible API; OpenAPI/Swagger; SDK examples (e.g. Python/JS); standard HTTP status codes |
 
 ---
 
-## Tech Stack (Final Recommendation)
+## 8. Technology Stack
 
-### **Backend: Go**
-**Why Go:**
-- Single binary deployment (easy installation)
-- Excellent for building APIs
-- Great concurrency (handles many uploads simultaneously)
-- Low resource usage
-- Cross-platform (Windows, Linux, macOS)
+### 8.1 Backend — Go
 
-**Frameworks/Libraries:**
-- **Gin** or **Fiber** (HTTP framework)
-- **GORM** (ORM for database)
-- **golang-jwt** (JWT tokens)
-- **minio** SDK patterns (they have S3-compatible server, learn from their design)
-- **bcrypt** (password hashing)
-- **AES-GCM** from Go crypto (encryption)
+- Single-binary deployment; strong fit for APIs and concurrency; low resource use; cross-platform (Windows, Linux, macOS)
+- **Suggested:** Gin or Fiber (HTTP); GORM (ORM); golang-jwt; bcrypt; Go crypto (AES-GCM). MinIO design can be used as reference for S3 compatibility.
 
-### **Database: PostgreSQL**
-**Why:**
-- Robust, production-ready
-- JSON support (for storing policies)
-- Good for relational data (users, roles, permissions)
+### 8.2 Database — PostgreSQL
 
-**Alternative:** SQLite if you want simpler deployment
+- Relational model; JSON/JSONB for policies; production-ready. SQLite is an alternative for minimal deployment.
+- **Location:** Stored on external drive, not host system
 
-### **Cache: Redis (optional)**
-**For:** Session storage, rate limiting, temporary tokens
+### 8.3 Cache — Redis (optional)
 
-### **Frontend: React**
-**Why:**
-- Modern, component-based
-- Rich ecosystem (UI libraries)
+- Sessions, rate limiting, temporary tokens.
 
-**Libraries:**
-- Ant Design or Material-UI (UI components)
-- React Router (navigation)
-- Axios (API calls)
-- React Dropzone (file uploads)
+### 8.4 Frontend — React
 
-### **Documentation: Swagger/OpenAPI**
-Auto-generate API docs from code
+- Component-based; large ecosystem. Suggested: Ant Design or Material-UI; React Router; Axios; React Dropzone for uploads.
+
+### 8.5 Documentation
+
+- Swagger/OpenAPI generated from code.
 
 ---
 
-## 3-Month Implementation Plan
+## 9. Implementation Plan (3 Months)
 
-### **Month 1: Core Infrastructure (Weeks 1-4)**
+### Month 1 — Core infrastructure (weeks 1–4)
 
-**Week 1-2: Project Setup + Basic Auth**
-- Setup Go project structure
-- PostgreSQL schema (users, roles, policies tables)
-- User registration/login endpoints
-- JWT token generation/validation
-- Basic web UI (login/signup pages)
+**Weeks 1–2:** Project layout; PostgreSQL schema (users, roles, policies); registration/login; JWT issue/validation; basic web UI (login/signup); **external drive detection and path validation**.
 
-**Week 3-4: IAM Foundation**
-- Role creation/assignment
-- Policy definition format (JSON schema)
-- Policy evaluation engine (check if action allowed)
-- API key generation
-- Admin UI for user/role management
+**Weeks 3–4:** Roles and assignment; policy schema and evaluation; API key generation; admin UI for users and roles.
 
-**Milestone:** Can create users, assign roles, generate API keys
+**Milestone:** Users, roles, and API keys operational; external drive isolation working.
 
----
+### Month 2 — Storage (weeks 5–8)
 
-### **Month 2: Storage Layer (Weeks 5-8)**
+**Weeks 5–6:** Bucket create/delete; single-file upload/download/delete; on-disk storage with encryption; metadata in DB.
 
-**Week 5-6: Basic Storage**
-- Bucket creation/deletion
-- Object upload (single file)
-- Object download
-- Object deletion
-- File storage on disk (encrypted)
-- Metadata in database
+**Weeks 7–8:** Multipart upload; list with pagination; pre-signed URLs; quotas; IAM checks on storage operations.
 
-**Week 7-8: Advanced Storage**
-- Multipart upload (for large files)
-- List objects with pagination
-- Pre-signed URLs (temporary access)
-- Storage quota enforcement
-- Connect IAM to storage (permission checks)
+**Milestone:** S3-like API working and integrated with IAM.
 
-**Milestone:** Full S3-like API working, integrated with IAM
+### Month 3 — Polish and demo (weeks 9–12)
+
+**Week 9:** Dashboard (metrics, activity); storage browser; log viewer; **resource monitoring**.
+
+**Week 10:** Python SDK (basic); example app; Swagger/OpenAPI docs.
+
+**Week 11:** Load testing (~50 concurrent users); permission and security checks; encryption verification; error handling; **host isolation testing**.
+
+**Week 12:** Installation guide; user and architecture docs; demo scenarios (multi-user, developer SDK, IAM, performance, **security isolation**).
 
 ---
 
-### **Month 3: Polish + Demo (Weeks 9-12)**
-
-**Week 9: Admin Console**
-- Dashboard (storage metrics, user activity)
-- Storage browser (navigate buckets, upload/download via UI)
-- System logs viewer
-
-**Week 10: Developer SDK**
-- Python SDK (basic client library)
-- Example app (e.g., photo gallery that uses your platform)
-- API documentation (Swagger)
-
-**Week 11: Testing + Security Hardening**
-- Load testing (simulate 50 concurrent users)
-- Security testing (try to bypass permissions)
-- Encryption verification
-- Error handling improvements
-
-**Week 12: Documentation + Demo Prep**
-- Installation guide
-- User manual
-- Architecture documentation
-- Prepare demo scenarios:
-  - Scenario 1: Teacher uploads lecture, students download
-  - Scenario 2: Developer builds app using SDK
-  - Scenario 3: Show IAM in action (deny access, grant access)
-
----
-
-## Database Schema (Core Tables)
+## 10. Database Schema (Core)
 
 ```sql
 -- Users
@@ -477,7 +471,7 @@ CREATE TABLE roles (
 CREATE TABLE policies (
     id UUID PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    policy_document JSONB NOT NULL,  -- JSON policy definition
+    policy_document JSONB NOT NULL,
     created_at TIMESTAMP
 );
 
@@ -517,11 +511,11 @@ CREATE TABLE buckets (
 CREATE TABLE objects (
     id UUID PRIMARY KEY,
     bucket_id UUID REFERENCES buckets(id),
-    key VARCHAR(1024) NOT NULL,  -- object path/name
+    key VARCHAR(1024) NOT NULL,
     size_bytes BIGINT,
     content_type VARCHAR(100),
-    encryption_key VARCHAR(255),  -- encrypted with master key
-    storage_path VARCHAR(1024),  -- physical path on disk
+    encryption_key VARCHAR(255),
+    storage_path VARCHAR(1024),
     created_at TIMESTAMP,
     updated_at TIMESTAMP,
     UNIQUE(bucket_id, key)
@@ -531,83 +525,38 @@ CREATE TABLE objects (
 CREATE TABLE audit_logs (
     id UUID PRIMARY KEY,
     user_id UUID REFERENCES users(id),
-    action VARCHAR(100),  -- e.g., "storage:GetObject"
-    resource VARCHAR(500),  -- e.g., "bucket:my-bucket/photo.jpg"
-    result VARCHAR(50),  -- "allowed" or "denied"
+    action VARCHAR(100),
+    resource VARCHAR(500),
+    result VARCHAR(50),
     timestamp TIMESTAMP
 );
 ```
 
 ---
 
-## Success Criteria for PFE Defense
+## 11. Demo and Evaluation Criteria
 
-**Demonstrate these capabilities live:**
+The following can be demonstrated for a defense or evaluation:
 
-1. **Multi-user scenario:**
-   - Create 3 users: Admin, Teacher, Student
-   - Teacher uploads files to "lectures" bucket
-   - Student can download but cannot upload
-   - Admin can see all buckets and manage users
-
-2. **Developer scenario:**
-   - Write simple Python script using your SDK
-   - Script uploads 100 small files
-   - Show it works without touching web UI
-
-3. **Security demonstration:**
-   - Show files encrypted on disk (cat the file, it's gibberish)
-   - Try to access object without permission (get 403 Forbidden)
-   - Show audit logs of all actions
-
-4. **Performance:**
-   - Upload 1GB file, show speed (compare to internet upload)
-   - Show 10 clients downloading simultaneously
-
-5. **IAM complexity:**
-   - Show policy JSON
-   - Change policy, show access immediately changes
-   - Demonstrate role inheritance (if implemented)
+1. **Multi-user:** Three users (Admin, Teacher, Student); Teacher uploads to a "lectures" bucket; Student can download but not upload; Admin manages users and sees all buckets.
+2. **Developer:** Python script using the SDK to upload many files without using the web UI.
+3. **Security:** Objects encrypted on disk (raw file unreadable); unauthorized access returns 403; audit log of actions; **attempt to access host filesystem results in denial**.
+4. **Performance:** Large upload (e.g. 1 GB) with measured throughput; multiple concurrent downloads; **host machine remains responsive**.
+5. **IAM:** Show policy JSON; change policy and show immediate effect; optional role inheritance.
+6. **Isolation:** Show that database, logs, and config are on external drive; demonstrate server cannot write to host filesystem; **disconnect external drive and show graceful handling**.
 
 ---
 
-## Why This Will Impress the Jury
+## 12. License
 
-**Technical depth:**
-- Full-stack system (frontend, backend, database, storage)
-- Security (encryption, IAM, audit logs)
-- Distributed systems concepts (API design, scalability)
-- Real engineering (not a CRUD app)
+**MIT License**
 
-**Practical value:**
-- Solves real problem (expensive cloud storage)
-- Deployable product (not just academic exercise)
-- Platform for others to build on
-
-**Buzzwords for resume:**
-- "Built S3-compatible storage platform"
-- "Implemented IAM system with RBAC and policy-based access control"
-- "Designed RESTful APIs following AWS standards"
-- "Deployed microservices architecture with PostgreSQL and Redis"
+Permissive open-source license allowing commercial use, modification, and distribution. Retains copyright while maximizing flexibility for future use and contributions.
 
 ---
 
-## My Final Word
+## 13. Project Summary
 
-This is a **legitimate platform project**. It's ambitious but achievable in 3 months if you stay focused.
-
-**Critical success factors:**
-1. **Start with IAM** - get auth/permissions right first
-2. **Keep storage simple initially** - single file upload/download, add multipart later
-3. **Don't gold-plate** - S3 has 100+ APIs, you need maybe 10
-4. **Document as you go** - future you will thank present you
-
-**One warning:** This is MORE work than the network security monitor I suggested earlier. But if you're passionate about it and the "platform" angle excites you, then it's worth it.
-
-**Do you want me to:**
-1. Create the full API specification (all endpoints with request/response schemas)?
-2. Write the initial Go project structure with skeleton code?
-3. Design the policy evaluation algorithm (how to check permissions)?
-4. Something else?
-
-Let's build this thing. What's next?
+- **Technical scope:** Full-stack (frontend, backend, DB, object storage); security (encryption, IAM, audit, **filesystem isolation**); API and scalability considerations; **resource-efficient design**.
+- **Practical impact:** Addresses cost and control of cloud storage; deployable product and extensible platform; **enhanced security through drive isolation**.
+- **Implementation focus:** IAM and auth first; **external drive detection and path validation**; start with simple single-file storage, add multipart later; implement a minimal S3 subset (~10 operations); document continuously.
