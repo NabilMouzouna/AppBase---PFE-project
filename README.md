@@ -98,14 +98,22 @@ LAN / Private VPC
             └── Database API
 ```
 
+For a deeper, implementation-level view (components, data flows, schemas, and ports), see [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
 ### Tech Stack
 
 |Layer               |Technology                                           |
 |--------------------|-----------------------------------------------------|
 |Language            |TypeScript                                           |
-|API Framework       |TBD (ADR pending)                                    |
+|API Framework       |Fastify                                              |
+|Auth Library        |better-auth (with API key plugin)                    |
+|ORM                 |Drizzle ORM                                          |
+|DB Driver           |better-sqlite3                                       |
+|API Documentation   |OpenAPI via `@fastify/swagger` + Swagger UI          |
 |Frontend            |Next.js 16                                           |
 |Database            |SQLite (per app container)                           |
+|Caching             |Deferred to M2 (SQLite is fast enough for M1)        |
+|Real-time           |Server-Sent Events (SSE)                             |
 |Job Queue           |BullMQ (in-process)                                  |
 |Container Management|Docker SDK (`dockerode`)                             |
 |Service Discovery   |mDNS                                                 |
@@ -113,7 +121,6 @@ LAN / Private VPC
 |Monorepo            |Turborepo                                            |
 |Testing             |Vitest (unit), Vitest (integration), Playwright (e2e)|
 |CI                  |GitHub Actions                                       |
-
 -----
 
 ## Monorepo Structure
@@ -124,6 +131,7 @@ AppBase/
 │   ├── api/              # Core BaaS API
 │   └── dashboard/        # Admin UI (Next.js)
 ├── packages/
+│   ├── sdk/              # JS/TS client SDK (@homestack/sdk)
 │   ├── db/               # Schema + migrations
 │   ├── types/            # Shared TypeScript interfaces
 │   └── config/           # Shared tsconfig, eslint, prettier
@@ -143,36 +151,137 @@ AppBase/
 
 -----
 
+## MVP
+
+> Ship something real first. The full architecture above is the locked vision — the MVP is the shortest path to a demoable, end-to-end developer experience that proves the concept.
+
+**One container. One app. All three BaaS services working. Consumed by a real demo app through an SDK.**
+
+### What's In, What's Deferred
+
+| Feature | MVP | Deferred |
+|---|---|---|
+| Auth (register, login, refresh, reset) | ✅ | — |
+| Storage (upload, download, scoped to user) | ✅ | — |
+| Database API (collections, CRUD, real-time SSE) | ✅ | — |
+| API key issuance + validation | ✅ | — |
+| SDK (JS/TS, wraps all 3 services) | ✅ | — |
+| Admin dashboard (basic — one app, users, usage) | ✅ | — |
+| Multi-app isolation | ❌ | M2 |
+| Container orchestration (dockerode) | ❌ | M2 |
+| Caddy + subdomain routing | ❌ | M3 |
+| mDNS service discovery | ❌ | M3 |
+| Health monitor + auto-restart | ❌ | M3 |
+| Frontend hosting | ❌ | M3/M4 |
+| infra.homestack.local control plane | ❌ | M4 |
+
+### MVP API Surface
+
+Single container, single Fastify process, three service plugins behind API key validation middleware (`/auth/register` and `/auth/login` are public):
+
+```
+localhost:3000
+│
+├── /auth
+│   ├── POST /register
+│   ├── POST /login
+│   ├── POST /refresh
+│   ├── POST /logout
+│   └── POST /reset-password
+│
+├── /storage
+│   ├── POST   /buckets/:bucket/upload
+│   ├── GET    /buckets/:bucket/:fileId
+│   ├── DELETE /buckets/:bucket/:fileId
+│   └── GET    /buckets/:bucket
+│
+├── /db
+│   ├── POST   /collections/:collection
+│   ├── GET    /collections/:collection
+│   ├── GET    /collections/:collection/:id
+│   ├── PUT    /collections/:collection/:id
+│   ├── DELETE /collections/:collection/:id
+│   └── GET    /collections/:collection/subscribe  (SSE)
+│
+└── /admin
+    ├── GET  /users
+    ├── GET  /storage/usage
+    └── GET  /audit-log
+```
+
+### The SDK is Not Optional
+
+The SDK is what makes this feel like Amplify and not just a REST API. It needs to do three things internally: store and refresh tokens automatically, inject the ID token into every storage/db request header, and manage the SSE subscription lifecycle.
+
+```typescript
+import { HomeStack } from '@homestack/sdk'
+
+const client = HomeStack.init({
+  endpoint: 'http://localhost:3000',
+  apiKey: 'hs_live_xxxx'
+})
+
+// Auth
+await client.auth.signUp({ email, password })
+const session = await client.auth.signIn({ email, password })
+
+// Storage — ID token injected automatically
+await client.storage.upload('avatars', file)
+const url = await client.storage.getUrl('avatars', fileId)
+
+// DB — scoped to user automatically
+await client.db.collection('passwords').create({ site, username, encrypted })
+const items = await client.db.collection('passwords').list()
+
+// Real-time
+client.db.collection('passwords').subscribe((change) => {
+  console.log('record changed', change)
+})
+```
+
+### SQLite Strategy: One File Per App (M2-Ready)
+
+Each registered app gets `data/{appId}.sqlite`. This costs roughly two extra hours in the MVP versus a shared schema-prefixed DB, but when M2 moves to container-per-app the file moves with no refactor — the abstraction is already correct.
+
+-----
+
 ## Development Milestones
 
-### M1 — Working Single Instance (Week 1-2)
+### M1 — MVP: Working Single Instance (Weeks 1–4)
 
-- Auth API fully functional
-- Storage API fully functional
-- Database API (collections + CRUD)
-- Accessible via REST, consumed by demo app
-- Admin dashboard (basic)
+Built vertically — one thin slice end to end first, then fill out:
 
-### M2 — Container Orchestration (Week 3-4)
+**Week 1** — Auth + API key middleware complete. SDK auth module working against it.
+
+**Week 2** — DB API complete (CRUD, no SSE yet). SDK db module working. Demo app (password manager) stores and retrieves passwords. **First demoable checkpoint.**
+
+**Week 3** — Storage complete. SDK storage module. Demo app stores file attachments.
+
+**Week 4** — SSE real-time on DB. SDK `subscribe()`. Demo app updates live without refresh. Basic admin dashboard. Single `docker run` command starts everything.
+
+Deliverable: one container, three services, a working SDK, and a password manager demo that runs fully offline.
+
+### M2 — Container Orchestration (Weeks 5–6)
 
 - Docker SDK integration (`dockerode`)
 - App creation spins up an isolated container
+- Per-app SQLite file migrates cleanly (foundation already set in M1)
 - Port assignment and management
 - Basic routing from master to container
 
-### M3 — Network Layer (Week 5-6)
+### M3 — Network Layer (Weeks 7–8)
 
 - Reverse proxy routing (`app.AppBase.local`)
 - mDNS service announcement and discovery
 - Health checks with auto-restart
 - Network isolation between app containers
 
-### M4 — Observability and Polish (Week 7-8)
+### M4 — Observability and Polish (Weeks 9–10)
 
 - Network topology dashboard
 - Live health status and port map
 - API documentation
-- End-to-end demo scenario
+- Full end-to-end demo scenario (offline, multi-app, auto-restart)
 
 -----
 

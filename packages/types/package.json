@@ -1,0 +1,19 @@
+{
+  "name": "@appbase/types",
+  "version": "0.0.1",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "check-types": "tsc --noEmit",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "@appbase/config": "workspace:*",
+    "typescript": "5.9.2"
+  }
+}

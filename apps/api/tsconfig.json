@@ -1,0 +1,10 @@
+{
+  "extends": "@appbase/config/tsconfig",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src"]
+}

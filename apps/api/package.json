@@ -1,0 +1,36 @@
+{
+  "name": "api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@appbase/db": "workspace:*",
+    "@appbase/types": "workspace:*",
+    "@fastify/cors": "^10.0.2",
+    "@fastify/jwt": "^9.1.0",
+    "@fastify/multipart": "^9.0.3",
+    "@fastify/swagger": "^9.5.0",
+    "@fastify/swagger-ui": "^5.2.3",
+    "argon2": "^0.43.0",
+    "bullmq": "^5.45.2",
+    "fastify": "^5.3.2",
+    "nanoid": "^5.1.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@appbase/config": "workspace:*",
+    "@types/node": "^22.13.14",
+    "tsx": "^4.19.3",
+    "typescript": "5.9.2",
+    "vitest": "^3.0.9"
+  }
+}
