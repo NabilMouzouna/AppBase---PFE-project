@@ -115,7 +115,7 @@ LAN / Private VPC
             └── Database API
 ```
 
-For a deeper, implementation-level view of both the current M1 architecture and the target platform architecture, see [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+For a deeper, implementation-level view of both the current M1 architecture and the target platform architecture, see [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md). For the public request/response contract consumed by SDKs and client apps, see [`docs/API-SPEC.md`](./docs/API-SPEC.md).
 
 ### Tech Stack
 
@@ -178,7 +178,7 @@ AppBase/
 
 | Feature | MVP | Deferred |
 |---|---|---|
-| Auth (register, login, refresh, reset) | ✅ | — |
+| Auth (register, login, refresh) | ✅ | — |
 | Storage (upload, download, scoped to user) | ✅ | — |
 | Database API (collections, CRUD, real-time SSE) | ✅ | — |
 | API key issuance + validation | ✅ | — |
@@ -196,6 +196,8 @@ AppBase/
 ### MVP Runtime Shape
 
 In M1, the BaaS unit is one API plus one app-specific dashboard. The demo application is external and consumes the API through the SDK. There is **no** deployment service, **no** master control plane, and **no** multi-app routing yet.
+
+The public AppBase contract is the BaaS API consumed by SDKs and external clients. Dashboard authentication is separate from that public contract and may use a simpler browser-oriented auth flow.
 
 ```
 Single host
@@ -218,7 +220,7 @@ localhost:3000
 │   ├── POST /login
 │   ├── POST /refresh
 │   ├── POST /logout
-│   └── POST /reset-password
+│   └── reset handled in dashboard (M1)
 │
 ├── /storage
 │   ├── POST   /buckets/:bucket/upload
@@ -239,6 +241,10 @@ localhost:3000
     ├── GET  /storage/usage
     └── GET  /audit-log
 ```
+
+The full public request/response contract, headers, and error format are defined in [`docs/API-SPEC.md`](./docs/API-SPEC.md).
+
+In M1, password reset is handled through the app-specific dashboard rather than a public API endpoint.
 
 ### The SDK is Not Optional
 

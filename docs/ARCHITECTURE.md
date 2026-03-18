@@ -21,6 +21,8 @@
 
 **Current architecture — M1.** AppBase starts as a single app-scoped BaaS unit. That unit contains the BaaS API (`apps/api/`), the app-specific dashboard UI (`apps/dashboard/`), one SQLite database, one storage namespace, and the JS/TS SDK used by external applications. The dashboard and API belong to the same app instance: the dashboard is used to manage API keys, users, storage, records, and documentation for that one app, while the API serves the SDK and any client consuming the BaaS.
 
+**Public contract boundary.** The public AppBase contract is the external API consumed by SDKs and client applications. It is documented separately in [`API-SPEC.md`](./API-SPEC.md). Dashboard authentication is intentionally excluded from that public contract and may use a separate browser-oriented auth mechanism.
+
 **Target architecture — M2+.** Once the BaaS unit is stable, AppBase adds a master control plane at `appbase.local`. The master provisions and deletes app-specific BaaS instances, tracks health and infra state, manages port allocation, and eventually integrates reverse proxy routing, mDNS, and hosted app deployment. Each provisioned app gets its own BaaS unit with isolated DB and storage.
 
 **Routing model.** The future routing model is intentionally reserved now to avoid renaming later:
@@ -108,7 +110,7 @@ flowchart TB
     master -.-> hostedApp
 ```
 
-**M1 operating model.** The dashboard and API are packaged as one app-specific BaaS unit. There is no global master yet, no app provisioning flow, and no subdomain routing layer. The demo application is external and consumes the BaaS through the SDK.
+**M1 operating model.** The dashboard and API are packaged as one app-specific BaaS unit. There is no global master yet, no app provisioning flow, and no subdomain routing layer. The demo application is external and consumes the BaaS through the SDK. The dashboard is internal to that app instance and is not part of the public AppBase API contract.
 
 **Role of `apps/master/` in M2+.** The master process is not an app data dashboard. It is the global control plane that provisions app instances and runs persistent background services as Fastify plugins with full `onReady`/`onClose` lifecycle hooks:
 
@@ -343,9 +345,11 @@ The API surface evolves in two stages:
 - **M1** — a single app-specific BaaS API (`apps/api/`) consumed by the SDK and by the app dashboard
 - **M2+** — the same app-specific BaaS API plus a separate master API (`apps/master/`) for orchestration
 
+The request/response-level public contract for the BaaS API is defined in [`API-SPEC.md`](./API-SPEC.md).
+
 ### App Container API — `apps/api/`
 
-The service API — consumed by `@appbase/sdk` and by the app-specific dashboard. All routes except `/auth/register` and `/auth/login` require a valid `x-api-key` header. Storage and database routes additionally require a valid `Authorization: Bearer {JWT}` for user-scoped operations.
+The service API — consumed by `@appbase/sdk` and by the app-specific dashboard. The public contract uses AppBase-owned routes such as `/auth/*`, `/storage/*`, and `/db/*` even if auth is implemented internally with `better-auth`. Storage and database routes require a valid `x-api-key` header plus an access-token bearer header for user-scoped operations.
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
@@ -353,7 +357,6 @@ The service API — consumed by `@appbase/sdk` and by the app-specific dashboard
 | POST | `/auth/login` | public | Verify credentials, issue JWT + refresh token |
 | POST | `/auth/refresh` | refresh token | Rotate JWT (15m window) |
 | POST | `/auth/logout` | bearer | Delete refresh token row |
-| POST | `/auth/reset-password` | admin | Admin-mediated password reset |
 | POST | `/storage/buckets/:bucket/upload` | api key + bearer | Upload file (multipart/form-data) |
 | GET | `/storage/buckets/:bucket/:fileId` | api key + bearer | Download file (user-scoped) |
 | DELETE | `/storage/buckets/:bucket/:fileId` | api key + bearer | Delete file (user-scoped) |
@@ -369,6 +372,8 @@ The service API — consumed by `@appbase/sdk` and by the app-specific dashboard
 | GET | `/admin/audit-log` | api key | Paginated audit log |
 | GET | `/health` | public | Liveness check |
 | GET | `/docs` | public | Swagger UI (auto-generated from route schemas) |
+
+Password reset remains dashboard-mediated in M1 and is therefore excluded from the public AppBase API contract.
 
 ### Master API — `apps/master/`
 

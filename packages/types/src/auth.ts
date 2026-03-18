@@ -22,14 +22,13 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface RefreshRequest {
-  refreshToken: string;
+export interface RefreshResponse {
+  accessToken: string;
+  expiresIn: number;
 }
 
-export interface ResetPasswordRequest {
-  email: string;
-  newPassword: string;
-  token: string;
+export interface LogoutResponse {
+  loggedOut: boolean;
 }
 
 export interface ApiKey {

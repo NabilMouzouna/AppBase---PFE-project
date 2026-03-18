@@ -28,6 +28,11 @@ This document summarizes the core technology choices for the AppBase platform an
   - Refresh tokens stored in SQLite for rotation and logout.
   - API keys bound to apps for server-to-server access and SDK initialization.
 
+- **Contract Boundary**:
+  - The public AppBase contract is documented in [`API-SPEC.md`](./API-SPEC.md) and uses AppBase-owned routes and schemas.
+  - `better-auth` is the internal auth implementation, not the public route namespace.
+  - Dashboard authentication is separate from the public BaaS API contract and can use a browser-oriented session model if that remains the simplest option.
+
 Implementation details and trade-offs are captured in `docs/adr/ADR-003-auth-implementation.md`.
 
 ---
@@ -63,6 +68,7 @@ The SDK is a first-class part of the MVP; without it the platform would be a raw
 ## Cross-References
 
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system components, flows, schemas, and ports.
+- [`API-SPEC.md`](./API-SPEC.md) — public request/response contract for Auth, Storage, and Database APIs.
 - [`adr/ADR-001-api-framework-selection.md`](./adr/ADR-001-api-framework-selection.md) — Fastify selection and alternatives.
 - [`adr/ADR-002-orm-and-migration-strategy.md`](./adr/ADR-002-orm-and-migration-strategy.md) — Drizzle ORM + SQLite + better-sqlite3.
 - [`adr/ADR-003-auth-implementation.md`](./adr/ADR-003-auth-implementation.md) — better-auth and the token/API key strategy.
