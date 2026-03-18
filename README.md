@@ -127,6 +127,7 @@ For a deeper, implementation-level view of both the current M1 architecture and 
 |ORM                 |Drizzle ORM                                          |
 |DB Driver           |better-sqlite3                                       |
 |API Documentation   |OpenAPI via `@fastify/swagger` + Swagger UI          |
+|Logging             |Pino (via Fastify logger)                            |
 |Frontend            |Next.js 16                                           |
 |Database            |SQLite (`data/appbase.sqlite` in M1, per-app DB in M2+) |
 |Caching             |Deferred to M2 (SQLite is fast enough for M1)        |

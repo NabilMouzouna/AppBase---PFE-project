@@ -1,39 +1,34 @@
-import Fastify from "fastify";
-import cors from "@fastify/cors";
-import multipart from "@fastify/multipart";
-import swagger from "@fastify/swagger";
-import swaggerUi from "@fastify/swagger-ui";
-import { createDb } from "@appbase/db";
-import path from "node:path";
-import fs from "node:fs";
+import { buildApp } from "./app";
+import { loadEnv } from "./config/env";
 
-const DB_PATH = process.env["DB_PATH"] ?? "data/appbase.sqlite";
-const PORT = Number(process.env["PORT"] ?? 3000);
-const HOST = process.env["HOST"] ?? "0.0.0.0";
+async function main() {
+  const env = loadEnv(process.env);
+  const app = await buildApp({ env });
 
-fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+  const shutdown = async (signal: NodeJS.Signals) => {
+    app.log.info({ signal }, "Shutting down AppBase API");
+    await app.close();
+    process.exit(0);
+  };
 
-const db = createDb(DB_PATH);
+  process.on("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
 
-const app = Fastify({ logger: true });
+  process.on("SIGTERM", () => {
+    void shutdown("SIGTERM");
+  });
 
-await app.register(cors, { origin: true });
-await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } });
-await app.register(swagger, {
-  openapi: {
-    info: { title: "AppBase API", version: "0.1.0" },
-    components: {
-      securitySchemes: {
-        bearerAuth: { type: "http", scheme: "bearer" },
-        apiKey: { type: "apiKey", in: "header", name: "x-api-key" },
-      },
-    },
-  },
-});
-await app.register(swaggerUi, { routePrefix: "/docs" });
+  await app.listen({ host: env.HOST, port: env.PORT });
+  app.log.info(
+    { host: env.HOST, port: env.PORT, dbPath: env.DB_PATH },
+    "AppBase API started",
+  );
+}
 
-app.decorate("db", db);
-
-app.get("/health", async () => ({ status: "ok" }));
-
-await app.listen({ port: PORT, host: HOST });
+try {
+  await main();
+} catch (error) {
+  console.error("Failed to start AppBase API", error);
+  process.exit(1);
+}

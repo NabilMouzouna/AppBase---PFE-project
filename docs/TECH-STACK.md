@@ -15,6 +15,11 @@ This document summarizes the core technology choices for the AppBase platform an
   - Route schemas are defined once and used both for validation and documentation.
   - `@fastify/swagger` generates the OpenAPI spec; `@fastify/swagger-ui` serves `/docs`.
 
+- **Logging**: Pino  
+  - Structured JSON logs are emitted for startup, requests, and operational failures.
+  - Fastify uses Pino directly, so framework logs and application logs share one format.
+  - Sensitive headers such as `Authorization` and `x-api-key` are redacted centrally.
+
 ---
 
 ## Authentication
