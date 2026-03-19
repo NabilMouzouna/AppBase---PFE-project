@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1773952422303,
+      "tag": "0000_add_better_auth_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1773952709788,
+      "tag": "0001_add_user_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1773952719599,
+      "tag": "0002_add_user_banned",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1773952744503,
+      "tag": "0003_add_jwks_public_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1773952753155,
+      "tag": "0004_add_jwks_private_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1773952762831,
+      "tag": "0005_jwks_key_optional",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1773954804206,
+      "tag": "0006_jwks_updated_at_optional",
+      "breakpoints": true
+    }
+  ]
+}

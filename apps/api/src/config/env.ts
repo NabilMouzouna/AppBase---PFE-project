@@ -9,22 +9,33 @@ const envSchema = z.object({
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
   BASE_URL: z.string().url().optional(),
-  // Reserved for the upcoming better-auth integration.
-  AUTH_SECRET: z.string().min(32).optional(),
+  AUTH_SECRET: z
+    .string()
+    .min(32, "AUTH_SECRET must be at least 32 characters")
+    .optional(),
 });
 
 type ParsedEnv = z.output<typeof envSchema>;
 
-export type AppEnv = Omit<ParsedEnv, "BASE_URL"> & {
+export type AppEnv = Omit<ParsedEnv, "BASE_URL" | "AUTH_SECRET"> & {
   BASE_URL: string;
+  AUTH_SECRET: string;
 };
 
 export function loadEnv(source: NodeJS.ProcessEnv): AppEnv {
   const parsed = envSchema.parse(source);
   const publicHost = parsed.HOST === "0.0.0.0" ? "localhost" : parsed.HOST;
 
+  const authSecret = parsed.AUTH_SECRET;
+  if (parsed.NODE_ENV === "production" && (!authSecret || authSecret.length < 32)) {
+    throw new Error(
+      "AUTH_SECRET is required in production and must be at least 32 characters",
+    );
+  }
+
   return {
     ...parsed,
     BASE_URL: parsed.BASE_URL ?? `http://${publicHost}:${parsed.PORT}`,
+    AUTH_SECRET: authSecret ?? "dev-secret-min-32-chars-required-for-auth",
   };
 }

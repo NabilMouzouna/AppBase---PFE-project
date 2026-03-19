@@ -1,6 +1,11 @@
 {
   "name": "appbase-monorepo",
   "private": true,
+  "pnpm": {
+    "overrides": {
+      "esbuild": "^0.25.12"
+    }
+  },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
