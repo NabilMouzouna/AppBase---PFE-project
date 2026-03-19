@@ -1,0 +1,1 @@
+ALTER TABLE `jwks` ADD `public_key` text NOT NULL;

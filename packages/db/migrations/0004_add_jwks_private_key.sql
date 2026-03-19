@@ -1,0 +1,1 @@
+ALTER TABLE `jwks` ADD `private_key` text NOT NULL;

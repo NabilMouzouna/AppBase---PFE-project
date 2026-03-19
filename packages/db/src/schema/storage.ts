@@ -1,5 +1,5 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
-import { users } from "./users";
+import { user } from "./auth";
 
 export const files = sqliteTable("files", {
   id: text("id").primaryKey(),
@@ -10,6 +10,6 @@ export const files = sqliteTable("files", {
   storagePath: text("storage_path").notNull(),
   ownerId: text("owner_id")
     .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
+    .references(() => user.id, { onDelete: "cascade" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });

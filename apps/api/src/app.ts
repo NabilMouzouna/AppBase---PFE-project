@@ -4,6 +4,7 @@ import type { AppEnv } from "./config/env";
 import { registerMiddleware } from "./middleware";
 import { registerDatabase } from "./plugins/database";
 import { registerInfrastructure } from "./plugins/infrastructure";
+import { registerAuth } from "./plugins/auth";
 import { registerRoutes } from "./routes";
 
 export interface BuildAppOptions {
@@ -18,6 +19,7 @@ export async function buildApp({ env }: BuildAppOptions): Promise<FastifyInstanc
   app.decorate("config", env);
 
   await registerDatabase(app, env);
+  await registerAuth(app, env);
   await registerInfrastructure(app, env);
   await registerRoutes(app);
   registerMiddleware(app);
