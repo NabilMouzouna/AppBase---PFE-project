@@ -8,7 +8,6 @@ const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
 
 // Local `.env` is loaded for development convenience. Runtime-provided
-// environment variables still win because dotenv does not override by default.
 loadDotenv({ path: path.resolve(currentDir, "../.env"), quiet: true });
 
 async function main() {
