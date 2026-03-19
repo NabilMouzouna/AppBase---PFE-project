@@ -13,6 +13,7 @@
   "scripts": {
     "build": "tsc",
     "check-types": "tsc --noEmit",
+    "test": "echo 'No tests in @appbase/db yet'",
     "dev": "tsc --watch",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
