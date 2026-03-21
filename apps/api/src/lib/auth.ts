@@ -4,6 +4,7 @@ import { apiKey } from "@better-auth/api-key";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { AppDb } from "@appbase/db";
 import * as schema from "@appbase/db/schema";
+import { ACCESS_TOKEN_EXPIRY_STRING, API_KEY_PREFIX } from "../constants";
 
 export function createAuth(db: AppDb, baseUrl: string, secret: string) {
   return betterAuth({
@@ -39,7 +40,7 @@ export function createAuth(db: AppDb, baseUrl: string, secret: string) {
       bearer(),
       jwt({
         jwt: {
-          expirationTime: "15m",
+          expirationTime: ACCESS_TOKEN_EXPIRY_STRING,
           definePayload: ({ user }) => ({
             sub: user.id,
             email: user.email,
@@ -50,7 +51,7 @@ export function createAuth(db: AppDb, baseUrl: string, secret: string) {
       }),
       admin(),
       apiKey({
-        defaultPrefix: "hs_live_",
+        defaultPrefix: API_KEY_PREFIX,
         schema: {
           apikey: {
             modelName: "api_keys",

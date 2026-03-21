@@ -3,6 +3,11 @@ import type { Auth } from "../lib/auth";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { auditLog } from "@appbase/db/schema";
+import {
+  ACCESS_TOKEN_EXPIRY_SECONDS,
+  AUTH_INTERNAL_PATHS,
+  BETTER_AUTH_HANDLER_MOUNT,
+} from "../constants";
 
 const registerBodySchema = z.object({
   email: z.string().email(),
@@ -14,8 +19,6 @@ const loginBodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
-
-const EXPIRES_IN_SECONDS = 900; // 15 minutes
 
 // OpenAPI schemas for /docs
 const apiErrorSchema = {
@@ -182,7 +185,7 @@ async function getJwtFromSession(
   sessionToken: string,
   baseUrl: string,
 ): Promise<string | null> {
-  const url = `${baseUrl}/api/auth/token`;
+  const url = `${baseUrl}${AUTH_INTERNAL_PATHS.token}`;
   const req = new Request(url, {
     method: "GET",
     headers: { Authorization: `Bearer ${sessionToken}` },
@@ -197,8 +200,8 @@ export async function registerAuthRoutes(app: FastifyInstance) {
   const { auth } = app;
   const baseUrl = app.config.BASE_URL;
 
-  // Mount better-auth internal routes at /api/auth/*
-  app.all("/api/auth/*", async (request: FastifyRequest, reply: FastifyReply) => {
+  // Mount better-auth internal routes
+  app.all(BETTER_AUTH_HANDLER_MOUNT, async (request: FastifyRequest, reply: FastifyReply) => {
     const url = `${baseUrl}${request.url}`;
     const headers: Record<string, string> = {};
     for (const [k, v] of Object.entries(request.headers)) {
@@ -285,7 +288,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       apiSuccess({
         accessToken: jwt,
         refreshToken: session.token,
-        expiresIn: EXPIRES_IN_SECONDS,
+        expiresIn: ACCESS_TOKEN_EXPIRY_SECONDS,
         user: formatUser(session.user),
       }),
     );
@@ -330,7 +333,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       apiSuccess({
         accessToken: jwt,
         refreshToken: session.token,
-        expiresIn: EXPIRES_IN_SECONDS,
+        expiresIn: ACCESS_TOKEN_EXPIRY_SECONDS,
         user: formatUser(session.user),
       }),
     );
@@ -352,7 +355,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     return reply.send(
       apiSuccess({
         accessToken: jwt,
-        expiresIn: EXPIRES_IN_SECONDS,
+        expiresIn: ACCESS_TOKEN_EXPIRY_SECONDS,
       }),
     );
   });
@@ -365,7 +368,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       return reply.send(apiSuccess({ loggedOut: true }));
     }
 
-    const url = `${baseUrl}/api/auth/sign-out`;
+    const url = `${baseUrl}${AUTH_INTERNAL_PATHS.signOut}`;
     const req = new Request(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${sessionToken}` },
