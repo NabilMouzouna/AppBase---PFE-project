@@ -1,10 +1,15 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 
-function isExcluded(method: string, path: string): boolean {
+function isExcluded(
+  method: string,
+  path: string,
+  nodeEnv: string,
+): boolean {
   const p = path.split("?")[0] ?? "/";
-  if (p.startsWith("/api/auth/")) return true;
-  if (method === "POST" && (p === "/auth/register" || p === "/auth/login" || p === "/auth/refresh" || p === "/auth/logout")) return true;
   if (method === "GET" && (p === "/health" || p.startsWith("/docs"))) return true;
+  // In test: auth is public so tests can run without seeding API keys
+  if (nodeEnv === "test" && method === "POST" && ["/auth/register", "/auth/login", "/auth/refresh", "/auth/logout"].includes(p)) return true;
+  if (nodeEnv === "test" && p.startsWith("/api/auth/")) return true;
   return false;
 }
 
@@ -12,7 +17,8 @@ export async function apiKeyMiddleware(
   request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
-  if (isExcluded(request.method, request.url?.split("?")[0] ?? "/")) {
+  const path = request.url?.split("?")[0] ?? "/";
+  if (isExcluded(request.method, path, request.server.config.NODE_ENV)) {
     return;
   }
 

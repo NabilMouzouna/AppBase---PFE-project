@@ -38,6 +38,7 @@ async function main() {
 try {
   await main();
 } catch (error) {
+  //TODO: use logger here instead of console.log
   console.error("Failed to start AppBase API", error);
   process.exit(1);
 }

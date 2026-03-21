@@ -1,0 +1,126 @@
+### AppBase API – Manual test requests
+### Use with VS Code REST Client (humao.rest-client) or JetBrains HTTP Client
+### Run: pnpm --filter api create-api-key to create an API key first
+### Run requests in order: 1. Health → 2. Register → 3. Login → 4. Refresh → 5. Logout
+
+@baseUrl = http://localhost:3000
+@apiKey = hs_live_mnlIKCBxPqvSGZLcDsNqAstnMihqTQwVAcwJESDFLxpgpBuxrvWzQBkpSjJkQVwl
+
+###############################################################################
+# 1. Health check
+###############################################################################
+
+### Health – liveness
+GET {{baseUrl}}/health
+
+###############################################################################
+# 2. Auth – Register
+###############################################################################
+
+### Register – success
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "email": "newUser@example.com",
+  "password": "SecurePassword123!"
+}
+
+### Register – with custom identity
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "email": "custom-id@example.com",
+  "password": "SecurePassword123!",
+  "customIdentity": {
+    "displayName": "Test User",
+    "company": "Acme"
+  }
+}
+
+### Register – validation error (missing email)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "password": "SecurePassword123!"
+}
+
+### Register – validation error (missing password)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "email": "test@example.com"
+}
+
+### Register – conflict (duplicate email, run after first register)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "email": "manual-test@example.com",
+  "password": "SecurePassword123!"
+}
+
+###############################################################################
+# 3. Auth – Login
+###############################################################################
+
+### Login – success (copy refreshToken from response for Refresh/Logout)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "email": "manual-test@example.com",
+  "password": "SecurePassword123!"
+}
+
+### Login – invalid credentials
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "email": "nonexistent@example.com",
+  "password": "wrong"
+}
+
+###############################################################################
+# 4. Auth – Refresh
+###############################################################################
+
+### Refresh – success (paste refreshToken from login response)
+POST {{baseUrl}}/auth/refresh
+x-api-key: {{apiKey}}
+Authorization: Bearer V5aFHu3fEIR1RjfptGj7VIJDgjY3mEaC
+
+###############################################################################
+# 5. Auth – Logout
+###############################################################################
+
+### Logout – success (optional: send refresh token to invalidate session)
+POST {{baseUrl}}/auth/logout
+x-api-key: {{apiKey}}
+Authorization: Bearer 6pNHh2b6hmjAc5ySPeudHSkP2Hx1N5Bm
+
+### Logout – without token (idempotent, always returns 200)
+POST {{baseUrl}}/auth/logout
+x-api-key: {{apiKey}}
+
+###############################################################################
+# Docs
+###############################################################################
+
+### Swagger UI
+GET {{baseUrl}}/docs
+
+### OpenAPI JSON
+GET {{baseUrl}}/docs/json

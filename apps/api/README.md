@@ -89,6 +89,10 @@ Returns a simple liveness response:
 - Swagger UI: `/docs`
 - OpenAPI JSON: `/docs/json`
 
+## Manual testing
+
+See [TESTING.md](./TESTING.md) for how to test manually with `.http` files, cURL, or Swagger UI.
+
 ## Scripts
 
 - `pnpm --filter api dev` — run the API in watch mode with `tsx`

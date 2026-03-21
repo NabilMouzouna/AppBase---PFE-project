@@ -12,6 +12,7 @@ export function createAuth(db: AppDb, baseUrl: string, secret: string) {
       schema: {
         ...schema,
         apiKey: schema.apiKeys,
+        api_keys: schema.apiKeys,
       },
     }),
     baseURL: baseUrl,
