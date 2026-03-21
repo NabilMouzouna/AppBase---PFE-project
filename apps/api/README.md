@@ -27,6 +27,7 @@ At the moment, this package is still in the scaffolding phase. The infrastructur
 ```text
 src/
 ├── app.ts                 # Fastify app factory
+├── constants.ts           # Auth TTLs, internal paths, middleware rules, API error codes
 ├── index.ts               # Process entrypoint
 ├── config/
 │   ├── env.ts             # Typed environment loading

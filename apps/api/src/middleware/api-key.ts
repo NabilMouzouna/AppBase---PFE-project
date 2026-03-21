@@ -1,15 +1,20 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
+import {
+  API_ERROR_CODES,
+  API_ERROR_MESSAGES,
+  AUTH_INTERNAL_PATHS,
+  DOCS_PATH_PREFIX,
+  HEALTH_PATH,
+  TEST_EXCLUDED_AUTH_POST_PATHS,
+} from "../constants";
 
-function isExcluded(
-  method: string,
-  path: string,
-  nodeEnv: string,
-): boolean {
+function isExcluded(method: string, path: string, nodeEnv: string): boolean {
   const p = path.split("?")[0] ?? "/";
-  if (method === "GET" && (p === "/health" || p.startsWith("/docs"))) return true;
+  if (method === "GET" && (p === HEALTH_PATH || p.startsWith(DOCS_PATH_PREFIX))) return true;
   // In test: auth is public so tests can run without seeding API keys
-  if (nodeEnv === "test" && method === "POST" && ["/auth/register", "/auth/login", "/auth/refresh", "/auth/logout"].includes(p)) return true;
-  if (nodeEnv === "test" && p.startsWith("/api/auth/")) return true;
+  if (nodeEnv === "test" && method === "POST" && TEST_EXCLUDED_AUTH_POST_PATHS.includes(p))
+    return true;
+  if (nodeEnv === "test" && p.startsWith(AUTH_INTERNAL_PATHS.apiPrefix)) return true;
   return false;
 }
 
@@ -26,7 +31,10 @@ export async function apiKeyMiddleware(
   if (!apiKeyHeader || typeof apiKeyHeader !== "string") {
     return reply.status(401).send({
       success: false,
-      error: { code: "INVALID_API_KEY", message: "Missing or invalid API key." },
+      error: {
+        code: API_ERROR_CODES.INVALID_API_KEY,
+        message: API_ERROR_MESSAGES.INVALID_API_KEY_MISSING,
+      },
     });
   }
 
@@ -37,7 +45,10 @@ export async function apiKeyMiddleware(
     if (!result.valid) {
       return reply.status(401).send({
         success: false,
-        error: { code: "INVALID_API_KEY", message: "Invalid API key." },
+        error: {
+          code: API_ERROR_CODES.INVALID_API_KEY,
+          message: API_ERROR_MESSAGES.INVALID_API_KEY,
+        },
       });
     }
     if (result.key) {
@@ -46,7 +57,10 @@ export async function apiKeyMiddleware(
   } catch {
     return reply.status(401).send({
       success: false,
-      error: { code: "INVALID_API_KEY", message: "Invalid API key." },
+      error: {
+        code: API_ERROR_CODES.INVALID_API_KEY,
+        message: API_ERROR_MESSAGES.INVALID_API_KEY,
+      },
     });
   }
 }
