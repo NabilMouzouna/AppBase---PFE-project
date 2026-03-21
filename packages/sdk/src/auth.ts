@@ -16,7 +16,7 @@ export class AuthClient {
     return `${this.config.endpoint}/auth`;
   }
 
-  async signUp(data: RegisterRequest): Promise<Session> {
+  signUp = async (data: RegisterRequest): Promise<Session> => {
     const res = await fetch(`${this.baseUrl}/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -26,9 +26,9 @@ export class AuthClient {
     const json = await res.json() as { data: Session };
     this.session = json.data;
     return this.session;
-  }
+  };
 
-  async signIn(data: LoginRequest): Promise<Session> {
+  signIn = async (data: LoginRequest): Promise<Session> => {
     const res = await fetch(`${this.baseUrl}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -38,9 +38,9 @@ export class AuthClient {
     const json = await res.json() as { data: Session };
     this.session = json.data;
     return this.session;
-  }
+  };
 
-  async refresh(): Promise<RefreshResponse> {
+  refresh = async (): Promise<RefreshResponse> => {
     if (!this.session) {
       throw new Error("No active session");
     }
@@ -59,9 +59,9 @@ export class AuthClient {
       expiresIn: json.data.expiresIn,
     };
     return json.data;
-  }
+  };
 
-  async signOut(): Promise<void> {
+  signOut = async (): Promise<void> => {
     if (!this.session) return;
     const res = await fetch(`${this.baseUrl}/logout`, {
       method: "POST",
@@ -72,13 +72,13 @@ export class AuthClient {
     if (!res.ok) throw new Error(await res.text());
     await res.json() as { data: LogoutResponse };
     this.session = null;
-  }
+  };
 
-  getSession(): Session | null {
+  getSession = (): Session | null => {
     return this.session;
-  }
+  };
 
-  getAccessToken(): string | null {
+  getAccessToken = (): string | null => {
     return this.session?.accessToken ?? null;
-  }
+  };
 }
